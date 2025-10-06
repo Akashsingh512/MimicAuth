@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Animated Login</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Import the face tracking library -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core@3.11.0/dist/tf-core.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-converter@3.11.0/dist/tf-converter.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl@3.11.0/dist/tf-backend-webgl.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/face-landmarks-detection@0.0.3/dist/face-landmarks-detection.js"></script>
+
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            overflow: hidden;
+        }
+        /* Custom styles for the characters and animations */
+        .character {
+            position: absolute;
+            transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.3s ease-in-out;
+        }
+        #cursor-follower {
+            position: absolute;
+            width: 32px;
+            height: 32px;
+            background-color: #FBBF24; /* amber-400 */
+            border-radius: 9999px;
+            pointer-events: none;
+            transform: translate(-50%, -50%);
+            z-index: 50;
+            transition: top 0.1s ease-out, left 0.1s ease-out, transform 0.2s ease-in-out;
+        }
+
+        /* Character specific styles */
+        #purple-char {
+            width: 150px;
+            height: 150px;
+            background-color: #8B5CF6; /* violet-500 */
+            border-radius: 1.5rem;
+            bottom: 25%;
+            left: 20%;
+            transform: rotate(-15deg);
+            transform-origin: bottom right;
+        }
+        #orange-char {
+            width: 200px;
+            height: 100px;
+            background-color: #F97316; /* orange-500 */
+            border-top-left-radius: 100px;
+            border-top-right-radius: 100px;
+            bottom: 0;
+            left: 35%;
+            transform: translateY(100%);
+            z-index: 10;
+        }
+        #black-char {
+            width: 120px;
+            height: 250px;
+            background-color: #111827; /* gray-900 */
+            border-radius: 1.5rem;
+            bottom: 5%;
+            left: 55%;
+            z-index: 5;
+            overflow: hidden;
+            transform-origin: bottom center;
+        }
+        #yellow-char {
+            width: 100px;
+            height: 150px;
+            background-color: #FACC15; /* yellow-400 */
+            border-top-left-radius: 50px;
+            border-top-right-radius: 50px;
+            bottom: 10%;
+            left: 70%;
+            transform-origin: bottom center;
+        }
+        
+        .eye {
+            position: absolute;
+            background-color: white;
+            border-radius: 50%;
+            transition: all 0.2s ease-out;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+        }
+        
+        .pupil {
+            position: relative;
+            width: 40%;
+            height: 40%;
+            background-color: #111827;
+            border-radius: 50%;
+            transition: transform 0.1s linear;
+        }
+
+        #purple-char .eye-container {
+            position: absolute;
+            top: 50px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 30px;
+        }
+        #purple-char .eye {
+            width: 15px;
+            height: 15px;
+            position: relative;
+            background-color: #111827;
+            border: 2px solid white;
+        }
+        #purple-char .pupil {
+             display: none; /* No pupil for this one */
+        }
+
+        #orange-char .eye-container {
+            position: absolute;
+            top: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 40px;
+        }
+        #orange-char .eye {
+            width: 10px;
+            height: 10px;
+            position: relative;
+        }
+        #orange-char .mouth {
+            position: absolute;
+            bottom: 25px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 40px;
+            height: 15px;
+            background-color: #111827;
+            border-radius: 5px;
+            transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        #black-char .eye-container {
+            position: absolute;
+            top: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 20px;
+            transition: transform 0.2s ease-out;
+        }
+        #black-char .eye {
+            width: 12px;
+            height: 12px;
+            position: relative;
+        }
+       
+        #yellow-char .eye {
+            width: 12px;
+            height: 12px;
+            top: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+        
+        /* Animation states */
+        .email-focus #purple-char {
+            transform: rotate(10deg) scale(1.05);
+        }
+        .email-focus #orange-char {
+            transform: translateY(50%);
+        }
+        .email-focus #orange-char .mouth {
+            height: 25px;
+            width: 30px;
+            border-radius: 10px;
+            bottom: 20px;
+        }
+         .email-focus #black-char {
+            transform: rotate(-5deg);
+        }
+        .email-focus #yellow-char {
+            transform: translateX(-15px) rotate(5deg) scale(0.95);
+        }
+
+
+        .peeking #purple-char {
+            transform: rotate(5deg) translateY(-20px);
+        }
+        .peeking #orange-char {
+            transform: translateY(20%);
+        }
+        .peeking #black-char {
+            transform: translateY(-10px);
+        }
+        .peeking #yellow-char {
+            transform: translateY(-15px) scale(1.05);
+        }
+
+        .eyes-closed .eye {
+            transform: scaleY(0.1) !important;
+        }
+        
+        #yellow-char.eyes-closed .eye {
+             transform: translateX(-50%) scaleY(0.1) !important;
+        }
+
+
+        /* Video element is now just for input, not display */
+        #face-video {
+            display: none;
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+
+    <div id="cursor-follower"></div>
+    
+
+    <div class="flex flex-col md:flex-row min-h-screen">
+        <!-- Left Side: Animations -->
+        <div id="animation-panel" class="relative w-full md:w-1/2 h-64 md:h-screen bg-gray-100 overflow-hidden">
+            <button id="start-face-motion" class="absolute top-4 left-4 bg-violet-500 text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-violet-600 transition z-50">
+                Start Face Motion
+            </button>
+            <!-- Video element for face tracking -->
+            <video id="face-video" autoplay playsinline></video>
+            <!-- The characters will be positioned relative to this container -->
+            <div id="purple-char" class="character">
+                <div class="eye-container">
+                    <div class="eye"></div>
+                    <div class="eye"></div>
+                </div>
+            </div>
+            <div id="orange-char" class="character">
+                <div class="eye-container">
+                    <div class="eye"><div class="pupil"></div></div>
+                    <div class="eye"><div class="pupil"></div></div>
+                </div>
+                <div class="mouth"></div>
+            </div>
+            <div id="black-char" class="character">
+                <div class="eye-container">
+                    <div class="eye"></div>
+                    <div class="eye"></div>
+                </div>
+            </div>
+            <div id="yellow-char" class="character">
+                 <div class="eye"></div>
+            </div>
+        </div>
+
+        <!-- Right Side: Login Form -->
+        <div class="w-full md:w-1/2 h-screen bg-white flex items-center justify-center p-8">
+            <div class="max-w-md w-full">
+                <div class="text-center mb-8">
+                    <h1 class="text-3xl font-bold text-gray-800">Welcome back!</h1>
+                    <p class="text-gray-500 mt-2">Please enter your details.</p>
+                </div>
+
+                <form id="login-form" class="space-y-6">
+                    <div>
+                        <label for="email" class="block text-sm font-medium text-gray-700">Email</label>
+                        <input type="email" id="email" name="email"
+                            class="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-violet-500 transition"
+                            placeholder="you@example.com">
+                    </div>
+
+                    <div>
+                        <label for="password" class="block text-sm font-medium text-gray-700">Password</label>
+                        <div class="relative mt-1">
+                            <input type="password" id="password" name="password"
+                                class="block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-violet-500 transition"
+                                placeholder="••••••••">
+                            <button type="button" id="toggle-password" class="absolute inset-y-0 right-0 flex items-center px-4 text-gray-500 hover:text-gray-700">
+                                <svg id="eye-open" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                                <svg id="eye-closed" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="hidden"><path d="M9.9 4.24A9 9 0 0 1 12 3c7 0 10 7 10 7a13.3 13.3 0 0 1-1.67 2.68"></path><path d="M6.61 6.61A13.5 13.5 0 0 0 2 12s3 7 10 7a9.7 9.7 0 0 0 5.39-1.61"></path><line x1="2" x2="22" y1="2" y2="22"></line><path d="M15 12.5c0 .15-.01.3-.02.45m-2.62 2.62c-.15.01-.3.02-.46.02a3 3 0 0 1-3-3c0-.17.01-.32.03-.46"></path></svg>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center">
+                            <input id="remember-me" name="remember-me" type="checkbox"
+                                class="h-4 w-4 text-violet-600 focus:ring-violet-500 border-gray-300 rounded">
+                            <label for="remember-me" class="ml-2 block text-sm text-gray-900">Remember for 30 days</label>
+                        </div>
+                        <a href="#" class="text-sm font-medium text-violet-600 hover:text-violet-500">Forgot password?</a>
+                    </div>
+
+                    <div>
+                        <button type="submit"
+                            class="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-gray-900 hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-900 transition">
+                            Log in
+                        </button>
+                    </div>
+                </form>
+
+                <div class="mt-6 relative">
+                    <div class="absolute inset-0 flex items-center">
+                        <div class="w-full border-t border-gray-300"></div>
+                    </div>
+                    <div class="relative flex justify-center text-sm">
+                        <span class="px-2 bg-white text-gray-500">Or</span>
+                    </div>
+                </div>
+
+                <div class="mt-6">
+                     <button type="button"
+                        class="w-full flex items-center justify-center py-3 px-4 border border-gray-300 rounded-lg shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-violet-500 transition">
+                        <svg class="w-5 h-5 mr-2" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <g clip-path="url(#clip0_17_80)">
+                            <path d="M47.532 24.5528C47.532 22.9214 47.3997 21.29 47.1117 19.71H24.48V28.9054H37.4434C36.9348 31.8982 35.277 34.4554 32.6558 36.1727V42.22H40.4933C45.0743 38.01 47.532 31.8545 47.532 24.5528Z" fill="#4285F4"></path>
+                            <path d="M24.48 48.0001C31.0609 48.0001 36.4116 45.8346 40.4933 42.22L32.6558 36.1727C30.3346 37.7618 27.5609 38.6836 24.48 38.6836C18.6055 38.6836 13.5618 34.8236 11.7517 29.53H3.72791V35.74C7.83482 43.0819 15.5902 48.0001 24.48 48.0001Z" fill="#34A853"></path>
+                            <path d="M11.7517 29.53C11.2659 28.0655 11 26.5164 11 24.9041C11 23.2918 11.2659 21.7428 11.7289 20.2782V14.0682H3.72791C1.74614 18.0655 0.519999 22.3418 0.519999 24.9041C0.519999 27.4664 1.74614 31.7428 3.72791 35.74L11.7517 29.53Z" fill="#FBBC05"></path>
+                            <path d="M24.48 9.12455C27.8927 9.12455 31.3963 10.33 33.9172 12.78L40.7308 5.96636C36.3889 2.27273 30.9463 0 24.48 0C15.5902 0 7.83482 4.91818 3.72791 14.0682L11.7289 20.2782C13.5618 14.9882 18.6055 9.12455 24.48 9.12455Z" fill="#EA4335"></path>
+                            </g>
+                            <defs>
+                            <clipPath id="clip0_17_80">
+                            <rect width="48" height="48" fill="white"></rect>
+                            </clipPath>
+                            </defs>
+                        </svg>
+                        Log in with Google
+                    </button>
+                </div>
+                 <div class="mt-8 text-center text-sm">
+                    <p class="text-gray-500">
+                        Don't have an account?
+                        <a href="#" class="font-medium text-violet-600 hover:text-violet-500">Sign up</a>
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            const cursorFollower = document.getElementById('cursor-follower');
+            const emailInput = document.getElementById('email');
+            const passwordInput = document.getElementById('password');
+            const animationPanel = document.getElementById('animation-panel');
+            const togglePassword = document.getElementById('toggle-password');
+            const allChars = document.querySelectorAll('.character');
+            const blackChar = document.getElementById('black-char');
+            const blackCharEyes = document.querySelector('#black-char .eye-container');
+            const yellowChar = document.getElementById('yellow-char');
+            const yellowCharEye = document.querySelector('#yellow-char .eye');
+            const purpleChar = document.getElementById('purple-char');
+            const purpleCharEyes = document.querySelector('#purple-char .eye-container');
+            const orangeChar = document.getElementById('orange-char');
+            const orangeMouth = document.querySelector('#orange-char .mouth');
+            const orangeCharEyes = document.querySelector('#orange-char .eye-container');
+            const startFaceMotionBtn = document.getElementById('start-face-motion');
+            const videoElement = document.getElementById('face-video');
+            
+            const eyeOpenIcon = document.getElementById('eye-open');
+            const eyeClosedIcon = document.getElementById('eye-closed');
+
+            let model;
+            let faceMotionActive = false;
+
+            async function setupCamera() {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: { width: 640, height: 480 },
+                    audio: false
+                });
+                videoElement.srcObject = stream;
+                return new Promise((resolve) => {
+                    videoElement.onloadedmetadata = () => {
+                        resolve(videoElement);
+                    };
+                });
+            }
+
+            async function detectFace() {
+                const predictions = await model.estimateFaces({
+                    input: videoElement,
+                    returnTensors: false,
+                    flipHorizontal: false,
+                    predictIrises: true // Important for pupil tracking
+                });
+
+                if (predictions.length > 0) {
+                    const keypoints = predictions[0].scaledMesh;
+                    
+                    // --- Head Rotation ---
+                    const nose = keypoints[4];
+                    const leftEye = keypoints[130];
+                    const rightEye = keypoints[359];
+                    const headTilt = (leftEye[1] - rightEye[1]) / (rightEye[0] - leftEye[0]);
+                    const headTurn = ((leftEye[0] + rightEye[0]) / 2 - nose[0]) / (rightEye[0] - leftEye[0]);
+
+                    const rotateY = headTurn * -40; // Flipped direction
+                    const rotateZ = headTilt * 40; 
+
+                    purpleChar.style.transform = `rotateZ(${rotateZ}deg) rotateY(${rotateY}deg) rotate(-15deg)`;
+                    blackChar.style.transform = `rotateZ(${rotateZ * 0.8}deg) rotateY(${rotateY}deg)`;
+                    yellowChar.style.transform = `rotateZ(${rotateZ * 1.2}deg) rotateY(${rotateY}deg)`;
+                    orangeChar.style.transform = `translateY(20%) rotateZ(${rotateZ * 0.5}deg) rotateY(${rotateY}deg)`;
+
+                    // --- Blinking ---
+                    // Calculate a ratio for how open the eyes are
+                    const leftBlink = Math.abs(keypoints[159][1] - keypoints[145][1]) / Math.abs(keypoints[158][1] - keypoints[153][1]);
+                    const rightBlink = Math.abs(keypoints[386][1] - keypoints[374][1]) / Math.abs(keypoints[385][1] - keypoints[380][1]);
+                    const blinkRatio = Math.min(1, ((leftBlink + rightBlink) / 2) * 2.5); // Normalize and amplify
+                    const eyeScaleY = Math.max(blinkRatio, 0.05);
+
+                    allChars.forEach(char => char.querySelectorAll('.eye').forEach(eye => {
+                         // Apply dynamic blink, but don't interfere with existing transforms like yellow char's
+                        if(eye.style.transform.includes('scaleY')) {
+                            eye.style.transform = eye.style.transform.replace(/scaleY\([0-9.]+\)/, `scaleY(${eyeScaleY})`);
+                        } else {
+                             eye.style.transform = `scaleY(${eyeScaleY})`;
+                        }
+                    }));
+                    
+                    // --- Mouth Opening (Only for Orange Character) ---
+                    const upperLip = keypoints[13];
+                    const lowerLip = keypoints[14];
+                    const mouthOpen = Math.abs(upperLip[1] - lowerLip[1]);
+                    
+                    const orangeMouthHeight = Math.min(Math.max(mouthOpen * 1.5, 5), 30);
+                    orangeMouth.style.height = `${orangeMouthHeight}px`;
+
+                    // --- Pupil Tracking (Only for Orange Character) ---
+                    const leftIris = keypoints[473];
+                    const leftEyeCenter = [(keypoints[33][0] + keypoints[133][0]) / 2, (keypoints[23][1] + keypoints[27][1]) / 2];
+                    
+                    let pupilX = (leftIris[0] - leftEyeCenter[0]) * 0.4;
+                    let pupilY = (leftIris[1] - leftEyeCenter[1]) * 0.4;
+
+                    orangeChar.querySelectorAll('.pupil').forEach(pupil => {
+                         pupil.style.transform = `translateX(${pupilX}px) translateY(${pupilY}px)`;
+                    });
+                }
+
+                if (faceMotionActive) {
+                    requestAnimationFrame(detectFace);
+                }
+            }
+
+
+            startFaceMotionBtn.addEventListener('click', async () => {
+                if (faceMotionActive) {
+                    faceMotionActive = false;
+                    startFaceMotionBtn.textContent = 'Start Face Motion';
+                    startFaceMotionBtn.classList.remove('bg-red-500', 'hover:bg-red-600');
+                    startFaceMotionBtn.classList.add('bg-violet-500', 'hover:bg-violet-600');
+                    if(videoElement.srcObject) {
+                        videoElement.srcObject.getTracks().forEach(track => track.stop());
+                    }
+                    // Reset character styles
+                    purpleChar.style.transform = `rotate(-15deg)`;
+                    blackChar.style.transform = ``;
+                    yellowChar.style.transform = ``;
+                    orangeChar.style.transform = `translateY(100%)`;
+                } else {
+                    startFaceMotionBtn.textContent = 'Starting...';
+                    try {
+                        model = await faceLandmarksDetection.load(
+                            faceLandmarksDetection.SupportedPackages.mediapipeFacemesh,
+                             { maxFaces: 1 }
+                        );
+                        await setupCamera();
+                        faceMotionActive = true;
+                        startFaceMotionBtn.textContent = 'Stop Face Motion';
+                        startFaceMotionBtn.classList.remove('bg-violet-500', 'hover:bg-violet-600');
+                        startFaceMotionBtn.classList.add('bg-red-500', 'hover:bg-red-600');
+                        detectFace();
+                    } catch (error) {
+                        console.error("Error starting face motion:", error);
+                        startFaceMotionBtn.textContent = 'Start Face Motion';
+                         alert("Could not start face motion. Please ensure you have a webcam and have granted permission.");
+                    }
+                }
+            });
+
+
+            // --- Existing Logic ---
+
+            // 1. Cursor Follower
+            document.addEventListener('mousemove', (e) => {
+                if(!faceMotionActive) {
+                    cursorFollower.style.top = `${e.clientY}px`;
+                    cursorFollower.style.left = `${e.clientX}px`;
+                }
+            });
+            
+            // 2. Email field focus animation
+            emailInput.addEventListener('focus', () => {
+                if (!faceMotionActive) animationPanel.classList.add('email-focus');
+                cursorFollower.style.transform = 'translate(-50%, -50%) scale(0.7)';
+            });
+            emailInput.addEventListener('blur', () => {
+                if (!faceMotionActive) animationPanel.classList.remove('email-focus');
+                cursorFollower.style.transform = 'translate(-50%, -50%) scale(1)';
+            });
+
+            // 3. Password field focus animation
+            passwordInput.addEventListener('focus', () => {
+                if (!faceMotionActive) animationPanel.classList.add('peeking');
+                cursorFollower.style.transform = 'translate(-50%, -50%) scale(0)';
+            });
+            passwordInput.addEventListener('blur', () => {
+                if (!faceMotionActive) {
+                    animationPanel.classList.remove('peeking');
+                    allChars.forEach(char => char.classList.remove('eyes-closed'));
+                    // Reset eye positions
+                    [blackCharEyes, purpleCharEyes, orangeCharEyes].forEach(container => {
+                        if (container) container.style.transform = `translateX(-50%)`;
+                    });
+                }
+                cursorFollower.style.transform = 'translate(-50%, -50%) scale(1)';
+            });
+
+            // 4. Toggle password visibility and eye animation
+            togglePassword.addEventListener('click', () => {
+                const isPassword = passwordInput.type === 'password';
+                passwordInput.type = isPassword ? 'text' : 'password';
+                
+                eyeOpenIcon.classList.toggle('hidden', isPassword);
+                eyeClosedIcon.classList.toggle('hidden', !isPassword);
+                
+                if (!faceMotionActive) {
+                    allChars.forEach(char => char.classList.toggle('eyes-closed'));
+                }
+            });
+
+            // 5. Typing in password animation (black character's eyes)
+            passwordInput.addEventListener('input', (e) => {
+                if(!blackCharEyes || faceMotionActive) return;
+                const maxMovement = 15;
+                const inputLength = e.target.value.length;
+                const cursorPosition = passwordInput.selectionStart;
+                const percent = cursorPosition / (inputLength || 1);
+                const totalRange = maxMovement * 2;
+                const centeredMovement = (percent * totalRange) - maxMovement;
+                blackCharEyes.style.transform = `translateX(calc(-50% + ${centeredMovement}px))`;
+            });
+            
+            // 6. Universal Eye tracking on mouse move
+            animationPanel.addEventListener('mousemove', (e) => {
+                if(document.activeElement === passwordInput || faceMotionActive) return;
+
+                const rect = animationPanel.getBoundingClientRect();
+                const mouseX = e.clientX - rect.left;
+                const mouseY = e.clientY - rect.top;
+
+                 // Eye tracking logic for all characters
+                const eyeTrack = (container, xFactor, yFactor) => {
+                    if (container) {
+                        const eyeRect = container.getBoundingClientRect();
+                        const relMouseX = mouseX - (eyeRect.left - rect.left + eyeRect.width / 2);
+                        const relMouseY = mouseY - (eyeRect.top - rect.top + eyeRect.height / 2);
+                        const moveX = (relMouseX / rect.width) * xFactor;
+                        const moveY = (relMouseY / rect.height) * yFactor;
+                        container.style.transform = `translateX(calc(-50% + ${moveX}px)) translateY(${moveY}px)`;
+                    }
+                };
+
+                eyeTrack(blackCharEyes, 30, 10);
+                eyeTrack(purpleCharEyes, 20, 10);
+                eyeTrack(orangeCharEyes, 15, 5);
+
+                // Yellow character eye tracking
+                if (yellowCharEye) {
+                    const eyeRect = yellowCharEye.getBoundingClientRect();
+                    const relMouseX = mouseX - (eyeRect.left - rect.left + eyeRect.width / 2);
+                    const relMouseY = mouseY - (eyeRect.top - rect.top + eyeRect.height / 2);
+                    const moveX = (relMouseX / rect.width) * 40;
+                    const moveY = (relMouseY / rect.height) * 20;
+
+                    let currentTransform = yellowChar.classList.contains('eyes-closed') 
+                        ? 'scaleY(0.1)' 
+                        : `translateY(${moveY}px)`;
+
+                    yellowCharEye.style.transform = `translateX(calc(-50% + ${moveX}px)) ${currentTransform}`;
+                }
+            });
+        });
+    </script>
+</body>
+</html>
+
